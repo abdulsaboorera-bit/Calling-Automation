@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callService } from "@/lib/services/call";
-import { getTelnyxProvider } from "@/lib/providers";
+import { getVapiProvider } from "@/lib/providers";
 import { connectDB } from "@/lib/db";
 import { WebhookEvent } from "@/lib/models";
 
@@ -12,35 +12,35 @@ export async function POST(request: NextRequest) {
       headers[key] = value;
     });
 
-    const provider = getTelnyxProvider();
+    const provider = getVapiProvider();
     if (!provider.validateWebhookRequest(headers, JSON.stringify(body), request.url)) {
-      console.warn("[Webhook] Invalid Telnyx signature");
+      console.warn("[Webhook] Invalid Vapi signature");
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }
 
     await connectDB();
 
     const payload = body as Record<string, unknown>;
-    const data = (payload.data as Record<string, unknown>) || {};
-    const callControlId = (data.call_control_id as string) || "";
-    const eventType = (payload.event_type as string) || "unknown";
+    const call = (payload.call as Record<string, unknown>) || {};
+    const eventType = (payload.event as string) || "unknown";
+    const callId = (call.id as string) || "";
 
-    if (callControlId) {
+    if (callId) {
       const existing = await WebhookEvent.findOne({
-        provider: "telnyx",
-        providerEventId: callControlId,
-        "payload.event_type": eventType,
+        provider: "vapi",
+        providerEventId: callId,
+        "payload.event": eventType,
       });
 
       if (existing) {
-        console.log(`[Webhook] Duplicate event for ${callControlId}`);
+        console.log(`[Webhook] Duplicate event for ${callId}`);
         return new NextResponse("OK", { status: 200 });
       }
 
       await WebhookEvent.create({
-        provider: "telnyx",
+        provider: "vapi",
         eventType,
-        providerEventId: callControlId,
+        providerEventId: callId,
         payload,
         processed: true,
         processedAt: new Date(),
@@ -48,27 +48,28 @@ export async function POST(request: NextRequest) {
     }
 
     const statusMap: Record<string, string> = {
-      "call.initiated": "initiated",
+      "call.queued": "initiated",
       "call.ringing": "ringing",
-      "call.answered": "answered",
-      "call.hangup": "completed",
-      "call.machine.detection.ended": "completed",
-      "call.bridged": "answered",
-      "call.fallback.ended": "completed",
+      "call.in_progress": "answered",
+      "call.ended": "completed",
+      "call.failed": "failed",
+      "call.busy": "busy",
+      "call.no-answer": "no_answer",
+      "call.machine": "voicemail",
     };
 
     const status = statusMap[eventType] || eventType;
-    const duration = data.duration_secs ? parseInt(String(data.duration_secs), 10) : undefined;
-    const recordingUrl = (data.recording_urls as string[])?.[0] || undefined;
+    const duration = call.duration ? parseInt(String(call.duration), 10) : undefined;
+    const recordingUrl = (call.recordingUrl as string) || undefined;
 
-    if (callControlId && status) {
-      await callService.handleWebhookStatus(callControlId, status, duration, recordingUrl);
+    if (callId && status) {
+      await callService.handleWebhookStatus(callId, status, duration, recordingUrl);
     }
 
     return new NextResponse("OK", { status: 200 });
   } catch (error: unknown) {
     const err = error as { message?: string };
-    console.error("[Webhook] Error processing Telnyx webhook:", err.message);
+    console.error("[Webhook] Error processing Vapi webhook:", err.message);
     return new NextResponse("OK", { status: 200 });
   }
 }

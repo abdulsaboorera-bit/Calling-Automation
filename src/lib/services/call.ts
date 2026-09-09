@@ -2,7 +2,7 @@ import { connectDB } from "@/lib/db";
 import { Call, Campaign, Customer, Feedback, Complaint, CallbackRequest, Tenant, AgentConfiguration } from "@/lib/models";
 import { CallFilterSchema } from "@/lib/validators";
 import { escapeRegex } from "@/lib/utils";
-import { getTelnyxProvider, getOpenAIProvider, type AIAnalysisResult } from "@/lib/providers";
+import { getVapiProvider, getOpenAIProvider, type AIAnalysisResult } from "@/lib/providers";
 import { addAnalysisJob, addRetryJob, CallJobData } from "@/lib/queue";
 
 export class CallService {
@@ -41,10 +41,10 @@ export class CallService {
       });
 
       const webhookBase = process.env.NEXT_PUBLIC_APP_URL!;
-      const statusCallbackUrl = `${webhookBase}/api/webhooks/telnyx`;
-      const voiceUrl = `${webhookBase}/api/telnyx/voice`;
+      const statusCallbackUrl = `${webhookBase}/api/webhooks/vapi`;
+      const voiceUrl = `${webhookBase}/api/vapi/voice`;
 
-      const provider = getTelnyxProvider();
+      const provider = getVapiProvider();
       const result = await provider.initiateCall({
         tenantId: jobData.tenantId,
         callId: jobData.callId,
@@ -58,7 +58,7 @@ export class CallService {
       await Call.findByIdAndUpdate(call._id, {
         providerCallSid: result.providerCallSid,
         status: "ringing",
-        provider: "telnyx",
+        provider: "vapi",
       });
     } catch (error: unknown) {
       const err = error as { message?: string };

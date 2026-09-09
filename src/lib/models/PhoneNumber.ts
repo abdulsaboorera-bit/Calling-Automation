@@ -25,7 +25,7 @@ const PhoneNumberSchema = new Schema<IPhoneNumber>(
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
     phoneNumber: { type: String, required: true },
     friendlyName: { type: String, required: true },
-    provider: { type: String, default: "telnyx" },
+    provider: { type: String, default: "vapi" },
     providerNumberSid: { type: String },
     capability: {
       voice: { type: Boolean, default: true },

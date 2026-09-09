@@ -80,7 +80,7 @@ const CallSchema = new Schema<ICall>(
       ],
       default: "pending",
     },
-    provider: { type: String, default: "telnyx" },
+    provider: { type: String, default: "vapi" },
     providerCallSid: { type: String },
     providerStatus: { type: String },
     fromNumber: { type: String, required: true },

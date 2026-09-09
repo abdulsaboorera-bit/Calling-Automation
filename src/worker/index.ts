@@ -2,7 +2,7 @@ import { Worker, Job } from "bullmq";
 import { createRedisConnection } from "../lib/redis";
 import { connectDB } from "../lib/db";
 import { Call, Campaign, Customer, Feedback, Complaint, CallbackRequest, Tenant } from "../lib/models";
-import { getTelnyxProvider, getOpenAIProvider } from "../lib/providers";
+import { getVapiProvider, getOpenAIProvider } from "../lib/providers";
 import { addRetryJob, addAnalysisJob, CallJobData } from "../lib/queue";
 
 async function initiateCallProcessor(job: Job) {
@@ -43,10 +43,10 @@ async function initiateCallProcessor(job: Job) {
     });
 
     const webhookBase = process.env.NEXT_PUBLIC_APP_URL!;
-    const statusCallbackUrl = `${webhookBase}/api/webhooks/telnyx`;
-    const voiceUrl = `${webhookBase}/api/telnyx/voice`;
+    const statusCallbackUrl = `${webhookBase}/api/webhooks/vapi`;
+    const voiceUrl = `${webhookBase}/api/vapi/voice`;
 
-    const provider = getTelnyxProvider();
+    const provider = getVapiProvider();
     const result = await provider.initiateCall({
       tenantId: data.tenantId,
       callId: data.callId,
@@ -59,7 +59,7 @@ async function initiateCallProcessor(job: Job) {
     await Call.findByIdAndUpdate(data.callId, {
       providerCallSid: result.providerCallSid,
       status: "ringing",
-      provider: "telnyx",
+      provider: "vapi",
     });
 
     console.log(`[Worker] Call ${data.callId} initiated, SID: ${result.providerCallSid}`);

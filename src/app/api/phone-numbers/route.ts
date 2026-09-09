@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       tenantId: context.user.tenantId,
       phoneNumber,
       friendlyName: friendlyName || phoneNumber,
-      provider: "telnyx",
+      provider: "vapi",
       status: "active",
     });
 
