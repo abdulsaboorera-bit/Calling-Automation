@@ -1,13 +1,14 @@
 import { connectDB } from "@/lib/db";
 import { Customer, Call, Feedback } from "@/lib/models";
 import { CreateCustomerSchema, CustomerFilterSchema } from "@/lib/validators";
-import { escapeRegex, toObjectId } from "@/lib/utils";
+import { escapeRegex, toObjectId, normalizePhoneNumber } from "@/lib/utils";
 import { z } from "zod";
 
 export class CustomerService {
   async create(tenantId: string, input: Record<string, unknown>) {
     await connectDB();
     const validated = CreateCustomerSchema.parse(input);
+    validated.phone = normalizePhoneNumber(validated.phone);
 
     const existing = await Customer.findOne({
       tenantId,
@@ -178,6 +179,8 @@ export class CustomerService {
         results.errors.push({ row: i + 1, error: "Missing phone number" });
         continue;
       }
+
+      mapped.phone = normalizePhoneNumber(mapped.phone as string);
 
       const existing = await Customer.findOne({ tenantId, phone: mapped.phone });
       if (existing) {

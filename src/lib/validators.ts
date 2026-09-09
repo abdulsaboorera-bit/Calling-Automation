@@ -19,13 +19,13 @@ export const CreateCampaignSchema = z.object({
   agentConfigurationId: z.string(),
   phoneNumberId: z.string(),
   concurrency: z.number().min(1).max(50).default(5),
-  timezone: z.string().default("America/New_York"),
+  timezone: z.string().default("Asia/Karachi"),
   callingHours: z
     .object({
       enabled: z.boolean().default(true),
       allowedDays: z.array(z.number().min(0).max(6)).default([1, 2, 3, 4, 5]),
       startTime: z.string().default("09:00"),
-      endTime: z.string().default("17:00"),
+      endTime: z.string().default("18:00"),
     })
     .optional(),
   retryPolicy: z
@@ -43,7 +43,10 @@ export const CreateCampaignSchema = z.object({
 export const CreateCustomerSchema = z.object({
   firstName: z.string().min(1).max(50),
   lastName: z.string().min(1).max(50),
-  phone: z.string().min(7).max(20),
+  phone: z.string().min(7).max(20).refine(
+    (val) => /^\+?[0-9]{7,15}$/.test(val.replace(/[\s\-()]/g, "")),
+    "Phone must be in E.164 format (e.g. +923001234567)"
+  ),
   email: z.string().email().optional().nullable(),
   service: z.string().max(200).optional().nullable(),
   serviceDate: z.string().optional().nullable(),

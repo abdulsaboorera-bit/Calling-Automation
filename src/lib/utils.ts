@@ -20,6 +20,28 @@ export function formatDuration(seconds: number): string {
   return `${mins}m ${secs}s`;
 }
 
+export function normalizePhoneNumber(phone: string): string {
+  let cleaned = phone.replace(/[\s\-()]/g, "");
+
+  if (cleaned.startsWith("00")) {
+    cleaned = "+" + cleaned.slice(2);
+  }
+
+  if (cleaned.startsWith("0") && cleaned.length === 11) {
+    cleaned = "+92" + cleaned.slice(1);
+  }
+
+  if (cleaned.startsWith("92") && !cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+
+  if (!cleaned.startsWith("+") && cleaned.length === 10) {
+    cleaned = "+92" + cleaned;
+  }
+
+  return cleaned;
+}
+
 export function formatDate(date: string | Date): string {
   return new Date(date).toLocaleDateString("en-US", {
     year: "numeric",

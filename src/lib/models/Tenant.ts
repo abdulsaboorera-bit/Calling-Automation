@@ -59,7 +59,7 @@ const TenantSchema = new Schema<ITenant>(
       zip: String,
       country: String,
     },
-    timezone: { type: String, default: "America/New_York" },
+    timezone: { type: String, default: "Asia/Karachi" },
     callingHours: {
       enabled: { type: Boolean, default: true },
       allowedDays: { type: [Number], default: [1, 2, 3, 4, 5] },
@@ -76,7 +76,7 @@ const TenantSchema = new Schema<ITenant>(
       renewalDate: Date,
     },
     settings: {
-      defaultTimezone: { type: String, default: "America/New_York" },
+      defaultTimezone: { type: String, default: "Asia/Karachi" },
       maxConcurrentCalls: { type: Number, default: 5 },
       defaultRetryAttempts: { type: Number, default: 3 },
       defaultRetryDelayMinutes: { type: Number, default: 60 },
