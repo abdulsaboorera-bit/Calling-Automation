@@ -7,16 +7,18 @@ import {
   NumberConfig,
 } from "./telephony";
 
-const TELNYX_API_KEY = process.env.TELNYX_API_KEY!;
-const TELNYX_CONNECTION_ID = process.env.TELNYX_CONNECTION_ID!;
 const TELNYX_API_BASE = "https://api.telnyx.com/v2";
 
 export class TelnyxProvider extends TelephonyProvider {
   name = "telnyx";
+  private apiKey: string;
+  private connectionId: string;
 
   constructor() {
     super();
-    if (!TELNYX_API_KEY || !TELNYX_CONNECTION_ID) {
+    this.apiKey = process.env.TELNYX_API_KEY || "";
+    this.connectionId = process.env.TELNYX_CONNECTION_ID || "";
+    if (!this.apiKey || !this.connectionId) {
       console.warn("[Telnyx] Credentials not configured");
     }
   }
@@ -25,7 +27,7 @@ export class TelnyxProvider extends TelephonyProvider {
     const response = await fetch(`${TELNYX_API_BASE}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${TELNYX_API_KEY}`,
+        Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -44,7 +46,7 @@ export class TelnyxProvider extends TelephonyProvider {
       const webhookUrl = params.statusCallbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/telnyx`;
 
       const result = await this.request("/calls", "POST", {
-        connection_id: TELNYX_CONNECTION_ID,
+        connection_id: this.connectionId,
         to: params.to,
         from: params.from,
         webhook_url: webhookUrl,
@@ -168,7 +170,7 @@ export class TelnyxProvider extends TelephonyProvider {
       if (voiceUrl || statusCallbackUrl) {
         await this.request(`/phone_numbers/${number.id}`, "PATCH", {
           voice: {
-            call_connection_id: TELNYX_CONNECTION_ID,
+            call_connection_id: this.connectionId,
             webhook_url: voiceUrl || undefined,
             status_callback_url: statusCallbackUrl || undefined,
           },

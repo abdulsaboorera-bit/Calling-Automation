@@ -8,8 +8,6 @@ import {
   AIAnalysisResult,
 } from "./ai";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
-
 const ANALYSIS_SCHEMA = {
   type: "object",
   properties: {
@@ -44,10 +42,11 @@ export class OpenAIProvider extends AIProvider {
 
   constructor() {
     super();
-    if (!OPENAI_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
       console.warn("[OpenAI] API key not configured");
     }
-    this.client = new OpenAI({ apiKey: OPENAI_API_KEY });
+    this.client = new OpenAI({ apiKey: apiKey || "placeholder" });
   }
 
   async chatCompletion(request: AICompletionRequest): Promise<AICompletionResponse> {
