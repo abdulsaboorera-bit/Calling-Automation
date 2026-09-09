@@ -1,4 +1,4 @@
-import { Queue, Worker, Job, JobsOptions } from "bullmq";
+import { Queue, Job, JobsOptions } from "bullmq";
 import { createRedisConnection } from "./redis";
 
 export const QUEUE_NAMES = {
@@ -26,31 +26,6 @@ export function createQueue(name: string): Queue {
     connection: createRedisConnection(),
     defaultJobOptions: QUEUE_CONFIG.defaultJobOptions,
   });
-}
-
-export function createWorker(
-  name: string,
-  processor: (job: Job) => Promise<void>,
-  concurrency: number = 5
-): Worker {
-  const worker = new Worker(name, processor, {
-    connection: createRedisConnection(),
-    concurrency,
-    limiter: {
-      max: 50,
-      duration: 1000,
-    },
-  });
-
-  worker.on("completed", (job) => {
-    console.log(`[Worker:${name}] Job ${job.id} completed`);
-  });
-
-  worker.on("failed", (job, err) => {
-    console.error(`[Worker:${name}] Job ${job?.id} failed:`, err.message);
-  });
-
-  return worker;
 }
 
 export interface CallJobData {
