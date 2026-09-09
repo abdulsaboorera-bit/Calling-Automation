@@ -88,7 +88,6 @@ const TenantSchema = new Schema<ITenant>(
   { timestamps: true }
 );
 
-TenantSchema.index({ slug: 1 });
 TenantSchema.index({ "subscription.stripeCustomerId": 1 });
 
 export const Tenant = mongoose.models.Tenant || mongoose.model<ITenant>("Tenant", TenantSchema);

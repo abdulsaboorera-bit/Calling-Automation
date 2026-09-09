@@ -35,7 +35,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [page, search]);
+  }, [page, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCustomers = async () => {
     setLoading(true);

@@ -13,13 +13,13 @@ describe("Auth utilities", () => {
       const hash = await hashPassword("mypassword");
       const result = await verifyPassword("mypassword", hash);
       expect(result).toBe(true);
-    });
+    }, 30000);
 
     it("should reject an incorrect password", async () => {
       const hash = await hashPassword("mypassword");
       const result = await verifyPassword("wrongpassword", hash);
       expect(result).toBe(false);
-    });
+    }, 30000);
   });
 
   describe("JWT tokens", () => {

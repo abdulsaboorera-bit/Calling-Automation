@@ -36,7 +36,7 @@ export default function CallsPage() {
 
   useEffect(() => {
     fetchCalls();
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCalls = async () => {
     setLoading(true);
