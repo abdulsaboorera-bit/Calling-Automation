@@ -76,7 +76,10 @@ export class CallService {
   async handleWebhookStatus(callSid: string, status: string, duration?: number, recordingUrl?: string) {
     await connectDB();
 
-    const call = await Call.findOne({ providerCallSid: callSid });
+    let call = await Call.findOne({ providerCallSid: callSid });
+    if (!call) {
+      call = await Call.findById(callSid);
+    }
     if (!call) {
       console.warn(`[Call] No call found for SID ${callSid}`);
       return;

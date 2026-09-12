@@ -46,6 +46,10 @@ async function initiateCallProcessor(job: Job) {
     const statusCallbackUrl = `${webhookBase}/api/webhooks/vapi`;
     const voiceUrl = `${webhookBase}/api/vapi/voice`;
 
+    console.log(`[Worker] Call ${data.callId} webhook URL: ${voiceUrl}`);
+    console.log(`[Worker] Call ${data.callId} status callback URL: ${statusCallbackUrl}`);
+    console.log(`[Worker] Call ${data.callId} calling ${data.to} from ${data.from}`);
+
     const provider = getVapiProvider();
     const result = await provider.initiateCall({
       tenantId: data.tenantId,
@@ -56,16 +60,19 @@ async function initiateCallProcessor(job: Job) {
       statusCallbackUrl,
     });
 
+    console.log(`[Worker] Call ${data.callId} Vapi response:`, JSON.stringify(result));
+
     await Call.findByIdAndUpdate(data.callId, {
       providerCallSid: result.providerCallSid,
       status: "ringing",
       provider: "vapi",
     });
 
-    console.log(`[Worker] Call ${data.callId} initiated, SID: ${result.providerCallSid}`);
+    console.log(`[Worker] Call ${data.callId} initiated successfully, SID: ${result.providerCallSid}`);
   } catch (error: unknown) {
-    const err = error as { message?: string };
+    const err = error as { message?: string; stack?: string };
     console.error(`[Worker] Call ${data.callId} failed:`, err.message);
+    console.error(`[Worker] Call ${data.callId} stack:`, err.stack);
 
     await Call.findByIdAndUpdate(data.callId, {
       status: "failed",
