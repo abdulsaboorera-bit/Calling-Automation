@@ -22,6 +22,7 @@ const QUEUE_CONFIG = {
 };
 
 export function createQueue(name: string): Queue {
+  console.log(`[Queue] Creating queue: ${name}`);
   return new Queue(name, {
     connection: createRedisConnection(),
     defaultJobOptions: QUEUE_CONFIG.defaultJobOptions,
@@ -59,20 +60,29 @@ export interface ImportJobData {
 }
 
 export async function addCallJob(data: CallJobData, delay?: number): Promise<Job> {
+  console.log(`[Queue] Adding call job for customer ${data.customerId}, call ${data.callId}, to: ${data.to}`);
   const queue = createQueue(QUEUE_NAMES.CALLS);
   const options: JobsOptions = {};
   if (delay) {
     options.delay = delay;
   }
-  return queue.add("initiate-call", data, options);
+  const job = await queue.add("initiate-call", data, options);
+  console.log(`[Queue] Call job added: ${job.id}`);
+  return job;
 }
 
 export async function addAnalysisJob(data: AnalysisJobData): Promise<Job> {
+  console.log(`[Queue] Adding analysis job for call ${data.callId}`);
   const queue = createQueue(QUEUE_NAMES.ANALYSIS);
-  return queue.add("analyze-call", data);
+  const job = await queue.add("analyze-call", data);
+  console.log(`[Queue] Analysis job added: ${job.id}`);
+  return job;
 }
 
 export async function addRetryJob(data: CallJobData, delayMs: number): Promise<Job> {
+  console.log(`[Queue] Adding retry job for call ${data.callId}, delay: ${delayMs}ms`);
   const queue = createQueue(QUEUE_NAMES.RETRY);
-  return queue.add("retry-call", data, { delay: delayMs });
+  const job = await queue.add("retry-call", data, { delay: delayMs });
+  console.log(`[Queue] Retry job added: ${job.id}`);
+  return job;
 }

@@ -185,7 +185,22 @@ async function analysisProcessor(job: Job) {
 
 async function startWorker() {
   console.log("[Worker] Starting call worker...");
+  console.log("[Worker] NEXT_PUBLIC_APP_URL:", process.env.NEXT_PUBLIC_APP_URL);
+  console.log("[Worker] MONGODB_URI set:", !!process.env.MONGODB_URI);
+  console.log("[Worker] REDIS_URL set:", !!process.env.REDIS_URL);
+  console.log("[Worker] VAPI_API_KEY set:", !!process.env.VAPI_API_KEY);
+
   await connectDB();
+
+  const redisConn = createRedisConnection();
+  try {
+    await redisConn.ping();
+    console.log("[Worker] Redis ping successful");
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    console.error("[Worker] Redis connection failed:", e.message);
+    process.exit(1);
+  }
 
   const callWorker = new Worker("calls", initiateCallProcessor, {
     connection: createRedisConnection(),
