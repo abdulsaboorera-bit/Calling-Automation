@@ -66,20 +66,12 @@ export class VapiProvider extends TelephonyProvider {
 
       const customerNumber = toE164(params.to);
       console.log(`[Vapi] Initiating call: assistantId=${assistantId}, phoneNumberId=${phoneNumberId}, to=${customerNumber}`);
-      console.log(`[Vapi] Server URL: ${params.webhookUrl}`);
 
       const result = await this.request("/call/phone", "POST", {
         assistantId,
         phoneNumberId,
         customer: {
           number: customerNumber,
-        },
-        server: {
-          url: params.webhookUrl,
-          headers: {
-            "x-call-id": params.callId,
-            "x-tenant-id": params.tenantId,
-          },
         },
         metadata: {
           tenantId: params.tenantId,
