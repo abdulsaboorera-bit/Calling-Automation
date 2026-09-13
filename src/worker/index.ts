@@ -1,3 +1,4 @@
+import "./load-env";
 import { Worker, Job } from "bullmq";
 import { createRedisConnection } from "../lib/redis";
 import { connectDB } from "../lib/db";
