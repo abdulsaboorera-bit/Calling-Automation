@@ -229,18 +229,25 @@ export class CampaignService {
   }
 
   private async enqueueCalls(tenantId: string, campaign: import("mongoose").Document & Record<string, unknown>) {
+    console.log(`[Campaign] Enqueueing calls for campaign ${campaign._id}`);
+
     const query: Record<string, unknown> = { tenantId, doNotCall: false };
     if (campaign.customerFilter) {
       Object.assign(query, campaign.customerFilter);
     }
 
     const customers = await Customer.find(query).select("_id phone firstName lastName");
+    console.log(`[Campaign] Found ${customers.length} customers to call`);
+
     const phoneNumber = await PhoneNumber.findById(campaign.phoneNumberId);
 
     if (!phoneNumber) {
       throw new Error("Phone number not found");
     }
 
+    console.log(`[Campaign] Using phone number: ${phoneNumber.phoneNumber}`);
+
+    let enqueuedCount = 0;
     for (const customer of customers) {
       const existingCall = await Call.findOne({
         tenantId,
@@ -250,6 +257,7 @@ export class CampaignService {
       });
 
       if (existingCall) {
+        console.log(`[Campaign] Call already exists for customer ${customer._id}, skipping`);
         continue;
       }
 
@@ -279,8 +287,17 @@ export class CampaignService {
         maxRetries: (campaign.retryPolicy as Record<string, unknown>)?.maxRetries as number || 3,
       };
 
-      await addCallJob(jobData);
+      try {
+        await addCallJob(jobData);
+        enqueuedCount++;
+        console.log(`[Campaign] Enqueued call for customer ${customer._id} (phone: ${customer.phone})`);
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        console.error(`[Campaign] Failed to enqueue call for customer ${customer._id}:`, e.message);
+      }
     }
+
+    console.log(`[Campaign] Finished enqueueing: ${enqueuedCount} calls added to queue`);
   }
 }
 
