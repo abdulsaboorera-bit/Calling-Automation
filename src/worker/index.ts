@@ -232,15 +232,46 @@ async function startWorker() {
     console.error(`[Worker] Call job ${job?.id} failed:`, err.message);
   });
 
+  callWorker.on("error", (err) => {
+    console.error(`[Worker] Call worker error:`, err.message);
+  });
+
+  callWorker.on("stalled", (jobId) => {
+    console.log(`[Worker] Call job ${jobId} stalled`);
+  });
+
   retryWorker.on("completed", (job) => {
     console.log(`[Worker] Retry job ${job.id} completed`);
+  });
+
+  retryWorker.on("failed", (job, err) => {
+    console.error(`[Worker] Retry job ${job?.id} failed:`, err.message);
   });
 
   analysisWorker.on("completed", (job) => {
     console.log(`[Worker] Analysis job ${job.id} completed`);
   });
 
+  analysisWorker.on("failed", (job, err) => {
+    console.error(`[Worker] Analysis job ${job?.id} failed:`, err.message);
+  });
+
   console.log("[Worker] All workers started successfully");
+
+  setInterval(async () => {
+    try {
+      const waiting = await redisConn.lrange("bull:calls:wait", 0, -1);
+      const active = await redisConn.smembers("bull:calls:active");
+      const delayed = await redisConn.lrange("bull:calls:delayed", 0, -1);
+      console.log(`[Worker] Queue status - waiting: ${waiting.length}, active: ${active.length}, delayed: ${delayed.length}`);
+      if (waiting.length > 0) {
+        console.log(`[Worker] Waiting jobs: ${waiting.join(", ")}`);
+      }
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      console.error(`[Worker] Queue check error:`, e.message);
+    }
+  }, 10000);
 }
 
 startWorker().catch(console.error);
