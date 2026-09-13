@@ -21,12 +21,19 @@ const QUEUE_CONFIG = {
   },
 };
 
+const queueCache = new Map<string, Queue>();
+
 export function createQueue(name: string): Queue {
-  console.log(`[Queue] Creating queue: ${name}`);
-  return new Queue(name, {
+  const existing = queueCache.get(name);
+  if (existing) {
+    return existing;
+  }
+  const queue = new Queue(name, {
     connection: createRedisConnection(),
     defaultJobOptions: QUEUE_CONFIG.defaultJobOptions,
   });
+  queueCache.set(name, queue);
+  return queue;
 }
 
 export interface CallJobData {
@@ -41,6 +48,24 @@ export interface CallJobData {
   retryCount: number;
   maxRetries: number;
   metadata?: Record<string, unknown>;
+  agentConfig?: {
+    name: string;
+    companyName: string;
+    businessDescription: string;
+    agentName: string;
+    voice: string;
+    language: string;
+    tone: string;
+    openingMessage: string;
+    feedbackQuestions: string[];
+    closingMessage: string;
+    maxCallDurationSeconds: number;
+    systemPrompt: string;
+  };
+  phoneNumber?: {
+    phoneNumber: string;
+    friendlyName: string;
+  };
 }
 
 export interface AnalysisJobData {

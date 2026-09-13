@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callService } from "@/lib/services/call";
-import { getVapiProvider } from "@/lib/providers";
+import { getVapiProvider, getOpenAIProvider } from "@/lib/providers";
 import { connectDB } from "@/lib/db";
-import { WebhookEvent, Call, AgentConfiguration } from "@/lib/models";
+import { WebhookEvent, Call, AgentConfiguration, Customer } from "@/lib/models";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,9 +12,13 @@ export async function POST(request: NextRequest) {
       headers[key] = value;
     });
 
+    const rawBody = await request.text();
     const provider = getVapiProvider();
-    if (!provider.validateWebhookRequest(headers, JSON.stringify(body), request.url)) {
-      console.warn("[Webhook] Invalid Vapi signature - allowing anyway for development");
+    if (!provider.validateWebhookRequest(headers, rawBody, request.url)) {
+      console.warn("[Webhook] Invalid Vapi signature");
+      if (process.env.NODE_ENV === "production") {
+        return new NextResponse("Unauthorized", { status: 401 });
+      }
     }
 
     await connectDB();
@@ -25,21 +29,47 @@ export async function POST(request: NextRequest) {
     const callObj = (message.call as Record<string, unknown>) || {};
     const callId = (callObj.id as string) || "";
 
-    console.log(`[Webhook] Received message type: ${messageType}, callId: ${callId}`);
-
     if (messageType === "assistant-request") {
-      console.log(`[Webhook] Handling assistant-request for call ${callId}`);
-
       let agentConfig = null;
+      let customerInfo = null;
+
       if (callId) {
         const callDoc = await Call.findOne({ providerCallSid: callId });
-        if (callDoc && callDoc.agentConfigurationId) {
-          agentConfig = await AgentConfiguration.findById(callDoc.agentConfigurationId);
+        if (callDoc) {
+          if (callDoc.agentConfigurationId) {
+            agentConfig = await AgentConfiguration.findById(callDoc.agentConfigurationId);
+          }
+          if (callDoc.customerId) {
+            customerInfo = await Customer.findById(callDoc.customerId);
+          }
         }
       }
 
       if (!agentConfig) {
         agentConfig = await AgentConfiguration.findOne({ isActive: true }).sort({ createdAt: -1 });
+      }
+
+      let systemPrompt = agentConfig?.systemPrompt || "";
+      if (!systemPrompt && agentConfig) {
+        const openai = getOpenAIProvider();
+        systemPrompt = openai.generateSystemPrompt({
+          companyName: agentConfig.companyName,
+          businessDescription: agentConfig.businessDescription,
+          agentName: agentConfig.agentName,
+          tone: agentConfig.tone,
+          openingMessage: agentConfig.openingMessage,
+          feedbackQuestions: agentConfig.feedbackQuestions,
+          closingMessage: agentConfig.closingMessage,
+          customerInfo: customerInfo ? {
+            firstName: (customerInfo as Record<string, unknown>).firstName,
+            lastName: (customerInfo as Record<string, unknown>).lastName,
+            service: (customerInfo as Record<string, unknown>).service,
+            serviceDate: (customerInfo as Record<string, unknown>).serviceDate,
+            vehicleYear: (customerInfo as Record<string, unknown>).vehicleYear,
+            vehicleMake: (customerInfo as Record<string, unknown>).vehicleMake,
+            vehicleModel: (customerInfo as Record<string, unknown>).vehicleModel,
+          } : undefined,
+        });
       }
 
       const assistantConfig = {
@@ -49,8 +79,8 @@ export async function POST(request: NextRequest) {
             provider: "openai",
             model: "gpt-4o",
             temperature: 0.7,
-            messages: agentConfig?.systemPrompt
-              ? [{ role: "system", content: agentConfig.systemPrompt }]
+            messages: systemPrompt
+              ? [{ role: "system", content: systemPrompt }]
               : [],
           },
           voice: agentConfig?.voice || "jessica",
@@ -58,7 +88,6 @@ export async function POST(request: NextRequest) {
         },
       };
 
-      console.log(`[Webhook] Responding with assistant config for call ${callId}`);
       return NextResponse.json(assistantConfig, { status: 200 });
     }
 
@@ -72,7 +101,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (existing) {
-        console.log(`[Webhook] Duplicate event for ${callId}`);
         return new NextResponse("OK", { status: 200 });
       }
 

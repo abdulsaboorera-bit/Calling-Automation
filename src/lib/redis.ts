@@ -1,8 +1,12 @@
 import Redis from "ioredis";
 
-let redisConnection: Redis | null = null;
+let cachedConnection: Redis | null = null;
 
 export function createRedisConnection(): Redis {
+  if (cachedConnection) {
+    return cachedConnection;
+  }
+
   const REDIS_URL = process.env.REDIS_URL;
   if (!REDIS_URL) {
     throw new Error("REDIS_URL environment variable is not set");
@@ -17,7 +21,6 @@ export function createRedisConnection(): Redis {
     ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     retryStrategy(times) {
       const delay = Math.min(times * 200, 5000);
-      console.log(`[Redis] Retry attempt ${times}, delay ${delay}ms`);
       return delay;
     },
     connectTimeout: 10000,
@@ -27,34 +30,23 @@ export function createRedisConnection(): Redis {
     console.error("[Redis] Connection error:", err.message);
   });
 
-  conn.on("connect", () => {
-    console.log("[Redis] TCP connected");
-  });
-
-  conn.on("ready", () => {
-    console.log("[Redis] Ready");
-  });
-
   conn.on("close", () => {
-    console.log("[Redis] Connection closed");
+    console.log("[Redis] Connection closed, clearing cache");
+    cachedConnection = null;
   });
 
+  cachedConnection = conn;
   return conn;
 }
 
 export function getRedisConnection(): Redis {
-  if (!redisConnection) {
-    redisConnection = createRedisConnection();
-  }
-  return redisConnection;
+  return createRedisConnection();
 }
 
 export async function testRedisConnection(): Promise<boolean> {
   try {
     const conn = createRedisConnection();
     await conn.ping();
-    console.log("[Redis] Ping successful");
-    conn.disconnect();
     return true;
   } catch (err: unknown) {
     const e = err as { message?: string };

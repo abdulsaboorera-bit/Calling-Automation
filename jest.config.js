@@ -9,6 +9,7 @@ module.exports = {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.json" }],
   },
+  testRegex: ".*\\.test\\.ts$",
   testPathIgnorePatterns: ["<rootDir>/node_modules/", "<rootDir>/.next/"],
   collectCoverageFrom: [
     "src/lib/**/*.ts",

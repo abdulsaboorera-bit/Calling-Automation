@@ -10,13 +10,12 @@ import {
 const VAPI_API_KEY = process.env.VAPI_API_KEY || "";
 const VAPI_API_BASE = "https://api.vapi.ai";
 
-function toE164(phone: string): string {
+function toE164(phone: string, defaultCountryCode = "92"): string {
   let cleaned = phone.replace(/[\s\-().]/g, "");
   if (cleaned.startsWith("+")) return cleaned;
   if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
-  if (cleaned.startsWith("0") && cleaned.length >= 10) return "+92" + cleaned.slice(1);
-  if (cleaned.startsWith("92") && cleaned.length >= 10) return "+" + cleaned;
-  if (cleaned.length === 10) return "+92" + cleaned;
+  if (cleaned.startsWith("0") && cleaned.length >= 10) return "+" + defaultCountryCode + cleaned.slice(1);
+  if (cleaned.length === 10) return "+" + defaultCountryCode + cleaned;
   return "+" + cleaned;
 }
 
@@ -65,11 +64,9 @@ export class VapiProvider extends TelephonyProvider {
       const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID || "";
 
       const customerNumber = toE164(params.to);
-      console.log(`[Vapi] Initiating call: assistantId=${assistantId}, phoneNumberId=${phoneNumberId}, to=${customerNumber}`);
-      console.log(`[Vapi] Server URL (webhook): ${params.statusCallbackUrl}`);
+      console.log(`[Vapi] Initiating call: to=${customerNumber}, assistantId=${assistantId}`);
 
-      const result = await this.request("/call", "POST", {
-        assistantId,
+      const requestBody: Record<string, unknown> = {
         phoneNumberId,
         customer: {
           number: customerNumber,
@@ -87,9 +84,27 @@ export class VapiProvider extends TelephonyProvider {
           tenantId: params.tenantId,
           callId: params.callId,
         },
-      });
+      };
 
-      console.log(`[Vapi] Call initiated successfully:`, JSON.stringify(result));
+      if (params.agentConfig) {
+        requestBody.assistant = {
+          firstMessage: params.agentConfig.openingMessage || "Hello!",
+          model: {
+            provider: "openai",
+            model: "gpt-4o",
+            temperature: 0.7,
+            messages: params.agentConfig.systemPrompt
+              ? [{ role: "system", content: params.agentConfig.systemPrompt }]
+              : [],
+          },
+          voice: params.agentConfig.voice || "jessica",
+          language: params.agentConfig.language || "en",
+        };
+      } else {
+        requestBody.assistantId = assistantId;
+      }
+
+      const result = await this.request("/call", "POST", requestBody);
 
       return {
         providerCallSid: result.id || "",
@@ -229,9 +244,19 @@ export class VapiProvider extends TelephonyProvider {
   ): boolean {
     const signature = headers["x-vapi-signature"] || "";
     if (!signature) {
-      console.warn("[Vapi] No webhook signature header found, allowing request");
+      return false;
+    }
+    if (process.env.NODE_ENV !== "production") {
       return true;
     }
-    return signature.length > 0;
+    try {
+      const crypto = require("crypto");
+      const secret = process.env.VAPI_WEBHOOK_SECRET || process.env.VAPI_API_KEY || "";
+      if (!secret) return false;
+      const expected = crypto.createHmac("sha256", secret).update(body).digest("hex");
+      return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    } catch {
+      return false;
+    }
   }
 }

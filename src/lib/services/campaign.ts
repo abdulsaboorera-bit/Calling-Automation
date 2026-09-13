@@ -240,12 +240,34 @@ export class CampaignService {
     console.log(`[Campaign] Found ${customers.length} customers to call`);
 
     const phoneNumber = await PhoneNumber.findById(campaign.phoneNumberId);
-
     if (!phoneNumber) {
       throw new Error("Phone number not found");
     }
 
-    console.log(`[Campaign] Using phone number: ${phoneNumber.phoneNumber}`);
+    const agentConfig = await AgentConfiguration.findById(campaign.agentConfigurationId);
+    if (!agentConfig) {
+      throw new Error("Agent configuration not found");
+    }
+
+    const agentConfigData = {
+      name: agentConfig.name,
+      companyName: agentConfig.companyName,
+      businessDescription: agentConfig.businessDescription,
+      agentName: agentConfig.agentName,
+      voice: agentConfig.voice,
+      language: agentConfig.language,
+      tone: agentConfig.tone,
+      openingMessage: agentConfig.openingMessage,
+      feedbackQuestions: agentConfig.feedbackQuestions,
+      closingMessage: agentConfig.closingMessage,
+      maxCallDurationSeconds: agentConfig.maxCallDurationSeconds,
+      systemPrompt: agentConfig.systemPrompt,
+    };
+
+    const phoneNumberData = {
+      phoneNumber: phoneNumber.phoneNumber,
+      friendlyName: phoneNumber.friendlyName,
+    };
 
     let enqueuedCount = 0;
     for (const customer of customers) {
@@ -257,7 +279,6 @@ export class CampaignService {
       });
 
       if (existingCall && existingCall.status !== "queued") {
-        console.log(`[Campaign] Call ${existingCall._id} already in status ${existingCall.status}, skipping`);
         continue;
       }
 
@@ -275,8 +296,6 @@ export class CampaignService {
           direction: "outbound",
           maxRetries: (campaign.retryPolicy as Record<string, unknown>)?.maxRetries as number || 3,
         });
-      } else {
-        console.log(`[Campaign] Re-enqueueing stale queued call ${existingCall._id} for customer ${customer._id}`);
       }
 
       const jobData: CallJobData = {
@@ -290,12 +309,13 @@ export class CampaignService {
         to: customer.phone,
         retryCount: 0,
         maxRetries: (campaign.retryPolicy as Record<string, unknown>)?.maxRetries as number || 3,
+        agentConfig: agentConfigData,
+        phoneNumber: phoneNumberData,
       };
 
       try {
         await addCallJob(jobData);
         enqueuedCount++;
-        console.log(`[Campaign] Enqueued call for customer ${customer._id} (phone: ${customer.phone})`);
       } catch (err: unknown) {
         const e = err as { message?: string };
         console.error(`[Campaign] Failed to enqueue call for customer ${customer._id}:`, e.message);

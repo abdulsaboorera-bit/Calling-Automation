@@ -26,14 +26,12 @@ async function initiateCallProcessor(job: Job) {
   const campaign = await Campaign.findById(data.campaignId);
   if (!campaign || campaign.status !== "running") {
     await Call.findByIdAndUpdate(data.callId, { status: "cancelled" });
-    console.log(`[Worker] Campaign ${data.campaignId} not running, cancelling call`);
     return;
   }
 
   const customer = await Customer.findById(data.customerId);
   if (!customer || customer.doNotCall) {
     await Call.findByIdAndUpdate(data.callId, { status: "do_not_call", doNotCall: true });
-    console.log(`[Worker] Customer ${data.customerId} is DNC, skipping`);
     return;
   }
 
@@ -45,11 +43,6 @@ async function initiateCallProcessor(job: Job) {
 
     const webhookBase = process.env.NEXT_PUBLIC_APP_URL!;
     const statusCallbackUrl = `${webhookBase}/api/webhooks/vapi`;
-    const voiceUrl = `${webhookBase}/api/vapi/voice`;
-
-    console.log(`[Worker] Call ${data.callId} webhook URL: ${voiceUrl}`);
-    console.log(`[Worker] Call ${data.callId} status callback URL: ${statusCallbackUrl}`);
-    console.log(`[Worker] Call ${data.callId} calling ${data.to} from ${data.from}`);
 
     const provider = getVapiProvider();
     const result = await provider.initiateCall({
@@ -57,11 +50,11 @@ async function initiateCallProcessor(job: Job) {
       callId: data.callId,
       from: data.from,
       to: data.to,
-      webhookUrl: voiceUrl,
+      webhookUrl: statusCallbackUrl,
       statusCallbackUrl,
+      agentConfig: data.agentConfig,
+      phoneNumber: data.phoneNumber,
     });
-
-    console.log(`[Worker] Call ${data.callId} Vapi response:`, JSON.stringify(result));
 
     await Call.findByIdAndUpdate(data.callId, {
       providerCallSid: result.providerCallSid,
@@ -69,11 +62,10 @@ async function initiateCallProcessor(job: Job) {
       provider: "vapi",
     });
 
-    console.log(`[Worker] Call ${data.callId} initiated successfully, SID: ${result.providerCallSid}`);
+    console.log(`[Worker] Call ${data.callId} initiated, SID: ${result.providerCallSid}`);
   } catch (error: unknown) {
-    const err = error as { message?: string; stack?: string };
+    const err = error as { message?: string };
     console.error(`[Worker] Call ${data.callId} failed:`, err.message);
-    console.error(`[Worker] Call ${data.callId} stack:`, err.stack);
 
     await Call.findByIdAndUpdate(data.callId, {
       status: "failed",
@@ -164,6 +156,16 @@ async function analysisProcessor(job: Job) {
       });
     }
 
+    if (analysis.callbackRequested) {
+      await CallbackRequest.create({
+        tenantId: data.tenantId,
+        callId: data.callId,
+        customerId: data.customerId,
+        campaignId: data.campaignId,
+        reason: analysis.problemDescription || "Customer requested callback",
+      });
+    }
+
     const sentimentUpdate: Record<string, number> = {};
     if (analysis.sentiment === "positive") sentimentUpdate.positiveCount = 1;
     else if (analysis.sentiment === "neutral") sentimentUpdate.neutralCount = 1;
@@ -177,6 +179,10 @@ async function analysisProcessor(job: Job) {
       recommendationScore: analysis.recommendationScore,
     });
 
+    await Tenant.findByIdAndUpdate(data.tenantId, {
+      $inc: { "subscription.monthlyCallUsage": 1 },
+    });
+
     console.log(`[Worker] Analysis complete for call ${data.callId}: ${analysis.sentiment}`);
   } catch (error: unknown) {
     const err = error as { message?: string };
@@ -185,29 +191,32 @@ async function analysisProcessor(job: Job) {
 }
 
 async function startWorker() {
+  const requiredEnvVars = ["REDIS_URL", "MONGODB_URI", "NEXT_PUBLIC_APP_URL"];
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      console.error(`[Worker] Missing required env var: ${envVar}`);
+      process.exit(1);
+    }
+  }
+
   console.log("[Worker] Starting call worker...");
-  console.log("[Worker] NEXT_PUBLIC_APP_URL:", process.env.NEXT_PUBLIC_APP_URL);
-  console.log("[Worker] MONGODB_URI set:", !!process.env.MONGODB_URI);
-  const redisUrl = process.env.REDIS_URL || "";
-  const redisHost = redisUrl.includes("@") ? redisUrl.split("@")[1] : "unknown";
-  console.log("[Worker] REDIS_URL host:", redisHost);
-  console.log("[Worker] VAPI_API_KEY set:", !!process.env.VAPI_API_KEY);
 
   await connectDB();
 
   const redisConn = createRedisConnection();
   try {
     await redisConn.ping();
-    console.log("[Worker] Redis ping successful");
   } catch (err: unknown) {
     const e = err as { message?: string };
     console.error("[Worker] Redis connection failed:", e.message);
     process.exit(1);
   }
 
+  const concurrency = parseInt(process.env.WORKER_CONCURRENCY || "5");
+
   const callWorker = new Worker("calls", initiateCallProcessor, {
     connection: createRedisConnection(),
-    concurrency: parseInt(process.env.WORKER_CONCURRENCY || "5"),
+    concurrency,
     limiter: {
       max: 50,
       duration: 60000,
@@ -236,10 +245,6 @@ async function startWorker() {
     console.error(`[Worker] Call worker error:`, err.message);
   });
 
-  callWorker.on("stalled", (jobId) => {
-    console.log(`[Worker] Call job ${jobId} stalled`);
-  });
-
   retryWorker.on("completed", (job) => {
     console.log(`[Worker] Retry job ${job.id} completed`);
   });
@@ -257,21 +262,6 @@ async function startWorker() {
   });
 
   console.log("[Worker] All workers started successfully");
-
-  setInterval(async () => {
-    try {
-      const waiting = await redisConn.lrange("bull:calls:wait", 0, -1);
-      const active = await redisConn.smembers("bull:calls:active");
-      const delayed = await redisConn.lrange("bull:calls:delayed", 0, -1);
-      console.log(`[Worker] Queue status - waiting: ${waiting.length}, active: ${active.length}, delayed: ${delayed.length}`);
-      if (waiting.length > 0) {
-        console.log(`[Worker] Waiting jobs: ${waiting.join(", ")}`);
-      }
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      console.error(`[Worker] Queue check error:`, e.message);
-    }
-  }, 10000);
 }
 
 startWorker().catch(console.error);

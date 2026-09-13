@@ -8,6 +8,24 @@ export interface CallInitiationParams {
   recordingEnabled?: boolean;
   timeout?: number;
   metadata?: Record<string, unknown>;
+  agentConfig?: {
+    name: string;
+    companyName: string;
+    businessDescription: string;
+    agentName: string;
+    voice: string;
+    language: string;
+    tone: string;
+    openingMessage: string;
+    feedbackQuestions: string[];
+    closingMessage: string;
+    maxCallDurationSeconds: number;
+    systemPrompt: string;
+  };
+  phoneNumber?: {
+    phoneNumber: string;
+    friendlyName: string;
+  };
 }
 
 export interface CallInitiationResult {
