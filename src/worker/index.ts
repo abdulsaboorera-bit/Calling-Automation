@@ -188,7 +188,9 @@ async function startWorker() {
   console.log("[Worker] Starting call worker...");
   console.log("[Worker] NEXT_PUBLIC_APP_URL:", process.env.NEXT_PUBLIC_APP_URL);
   console.log("[Worker] MONGODB_URI set:", !!process.env.MONGODB_URI);
-  console.log("[Worker] REDIS_URL set:", !!process.env.REDIS_URL);
+  const redisUrl = process.env.REDIS_URL || "";
+  const redisHost = redisUrl.includes("@") ? redisUrl.split("@")[1] : "unknown";
+  console.log("[Worker] REDIS_URL host:", redisHost);
   console.log("[Worker] VAPI_API_KEY set:", !!process.env.VAPI_API_KEY);
 
   await connectDB();
