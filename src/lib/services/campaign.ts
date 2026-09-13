@@ -256,28 +256,33 @@ export class CampaignService {
         status: { $nin: ["cancelled", "do_not_call"] },
       });
 
-      if (existingCall) {
-        console.log(`[Campaign] Call already exists for customer ${customer._id}, skipping`);
+      if (existingCall && existingCall.status !== "queued") {
+        console.log(`[Campaign] Call ${existingCall._id} already in status ${existingCall.status}, skipping`);
         continue;
       }
 
-      const call = await Call.create({
-        tenantId,
-        campaignId: campaign._id,
-        customerId: customer._id,
-        phoneNumberId: campaign.phoneNumberId,
-        agentConfigurationId: campaign.agentConfigurationId,
-        status: "queued",
-        fromNumber: phoneNumber.phoneNumber,
-        toNumber: customer.phone,
-        direction: "outbound",
-        maxRetries: (campaign.retryPolicy as Record<string, unknown>)?.maxRetries as number || 3,
-      });
+      let callDoc = existingCall;
+      if (!existingCall) {
+        callDoc = await Call.create({
+          tenantId,
+          campaignId: campaign._id,
+          customerId: customer._id,
+          phoneNumberId: campaign.phoneNumberId,
+          agentConfigurationId: campaign.agentConfigurationId,
+          status: "queued",
+          fromNumber: phoneNumber.phoneNumber,
+          toNumber: customer.phone,
+          direction: "outbound",
+          maxRetries: (campaign.retryPolicy as Record<string, unknown>)?.maxRetries as number || 3,
+        });
+      } else {
+        console.log(`[Campaign] Re-enqueueing stale queued call ${existingCall._id} for customer ${customer._id}`);
+      }
 
       const jobData: CallJobData = {
         tenantId,
         campaignId: campaign._id.toString(),
-        callId: call._id.toString(),
+        callId: callDoc!._id.toString(),
         customerId: customer._id.toString(),
         phoneNumberId: String(campaign.phoneNumberId),
         agentConfigurationId: String(campaign.agentConfigurationId),
